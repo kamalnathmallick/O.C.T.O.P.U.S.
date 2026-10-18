@@ -1,0 +1,10 @@
+# GitGuardian Configuration
+# Documentation: https://docs.gitguardian.com/ggshield-docs/configuration
+version: 2
+secret:
+  ignored_paths:
+    - "**/.env"
+    - "**/.env.*"
+    - "backend/.env"
+    - "frontend/.env*"
+    - "TEST_CREDENTIALS.md"

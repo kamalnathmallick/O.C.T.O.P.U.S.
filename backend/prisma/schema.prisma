@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  TECHNICIAN
+  OPERATOR
+}
+
+enum MachineStatus {
+  HEALTHY
+  WARNING
+  CRITICAL
+  OFFLINE
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum MaintenanceStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PredictionStatus {
+  NORMAL
+  WARNING
+  CRITICAL
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  password        String
+  name            String
+  role            Role      @default(OPERATOR)
+  department      String?
+  operatorNumber  String?   @unique
+  machineGroup    String?
+  isActive        Boolean   @default(true)
+  lastLogin       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  createdOperators  User[]  @relation("AdminCreatedOperators")
+  createdByAdmin     User?   @relation("AdminCreatedOperators", fields: [createdById], references: [id])
+  createdById        String?
+
+  maintenanceTasks   MaintenanceTask[]
+  alertAcknowledgments Alert[]
+
+  @@map("users")
+}
+
+model Machine {
+  id                String        @id @default(uuid())
+  name              String
+  type              String
+  model             String?
+  serialNumber      String?       @unique
+  location          String?
+  department        String?
+  machineGroup      String?
+  status            MachineStatus @default(HEALTHY)
+  healthScore       Int           @default(100)
+  installDate       DateTime?
+  lastMaintenance   DateTime?
+  nextMaintenance   DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  sensors           Sensor[]
+  alerts            Alert[]
+  predictions       Prediction[]
+  maintenanceTasks  MaintenanceTask[]
+
+  @@map("machines")
+}
+
+model Sensor {
+  id              String    @id @default(uuid())
+  machineId       String
+  name            String
+  type            String
+  unit            String
+  minValue        Float?
+  maxValue        Float?
+  thresholdMin    Float?
+  thresholdMax    Float?
+  isActive        Boolean   @default(true)
+  batteryLevel    Int?      @default(100)
+  lastReading     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  machine         Machine   @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  readings        SensorReading[]
+
+  @@map("sensors")
+}
+
+model SensorReading {
+  id          String    @id @default(uuid())
+  sensorId    String
+  value       Float
+  timestamp   DateTime  @default(now())
+
+  sensor      Sensor    @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+
+  @@map("sensor_readings")
+}
+
+model Alert {
+  id            String        @id @default(uuid())
+  machineId     String
+  acknowledgedAt DateTime?
+  severity      AlertSeverity @default(INFO)
+  status        AlertStatus   @default(ACTIVE)
+  title         String
+  message       String
+  sensorType    String?
+  value         Float?
+  threshold     Float?
+  createdAt     DateTime      @default(now())
+  resolvedAt    DateTime?
+
+  machine       Machine      @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  acknowledgedByUser User?     @relation(fields: [acknowledgedBy], references: [id])
+  acknowledgedBy String?       @map("acknowledged_by")
+
+  @@map("alerts")
+}
+
+model Prediction {
+  id                String          @id @default(uuid())
+  machineId         String
+  failureProbability Float          @default(0)
+  rul               Int?            @default(365)
+  riskScore         Int             @default(0)
+  confidence        Float           @default(0)
+  status            PredictionStatus @default(NORMAL)
+  modelVersion      String?
+  predictionDate    DateTime        @default(now())
+  nextPrediction    DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  machine           Machine        @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@map("predictions")
+}
+
+model MaintenanceTask {
+  id              String            @id @default(uuid())
+  machineId       String
+  title           String
+  description     String?
+  type            String
+  priority        String            @default("MEDIUM")
+  status          MaintenanceStatus @default(PENDING)
+  scheduledDate   DateTime?
+  completedDate   DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  machine         Machine          @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  assignedToUser  User?             @relation(fields: [assignedTo], references: [id])
+  assignedTo       String?           @map("assigned_to")
+
+  @@map("maintenance_tasks")
+}
+
+model SystemLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  action      String
+  entityType  String?
+  entityId    String?
+  details     String?  @db.Text
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@map("system_logs")
+}
+
+model OperatorNumber {
+  id              String    @id @default(uuid())
+  number          String    @unique
+  isAssigned      Boolean   @default(false)
+  assignedTo      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("operator_numbers")
+}
